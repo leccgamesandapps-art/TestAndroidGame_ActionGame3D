@@ -28,41 +28,42 @@ class MainMenuScreen(private val game: ActionGame3D) : ScreenAdapter() {
         game.font.data.setScale(3.2f)
         game.font.color = Color.valueOf("4FC3F7")
         layout.setText(game.font, "ActionGame3D")
-        game.font.draw(game.spriteBatch, layout, (1280f - layout.width) / 2f, 540f)
+        game.font.draw(game.spriteBatch, layout, (1280f - layout.width) / 2f, 560f)
 
-        game.font.data.setScale(1.3f)
+        game.font.data.setScale(1.2f)
         game.font.color = Color.LIGHT_GRAY
-        layout.setText(game.font, "v0.1.1  •  Mobile FPS")
-        game.font.draw(game.spriteBatch, layout, (1280f - layout.width) / 2f, 480f)
+        layout.setText(game.font, "v0.1.2  •  Mobile FPS")
+        game.font.draw(game.spriteBatch, layout, (1280f - layout.width) / 2f, 500f)
 
-        game.font.data.setScale(1.8f)
+        game.font.data.setScale(1.9f)
         game.font.color = Color.WHITE
         layout.setText(game.font, "TAP ANYWHERE TO START")
-        game.font.draw(game.spriteBatch, layout, (1280f - layout.width) / 2f, 360f)
+        game.font.draw(game.spriteBatch, layout, (1280f - layout.width) / 2f, 400f)
 
-        game.font.data.setScale(1.1f)
+        game.font.data.setScale(1.05f)
         game.font.color = Color.LIGHT_GRAY
         val lines = listOf(
-            "Left side  = Move",
-            "Right side = Look + Shoot",
-            "Bottom buttons = Jump / Reload / Sprint"
+            "LEFT stick  = Move",
+            "RIGHT drag  = Look",
+            "RED button  = Shoot",
+            "BLUE        = Jump",
+            "YELLOW      = Reload",
+            "GREEN       = Sprint"
         )
-        var y = 280f
+        var y = 320f
         lines.forEach {
             layout.setText(game.font, it)
             game.font.draw(game.spriteBatch, layout, (1280f - layout.width) / 2f, y)
-            y -= 32f
+            y -= 30f
         }
 
         game.font.data.setScale(1f)
         game.font.color = Color.GOLD
         layout.setText(game.font, "Kills: ${game.totalKills}  |  High Score: ${game.highScore}")
-        game.font.draw(game.spriteBatch, layout, (1280f - layout.width) / 2f, 80f)
+        game.font.draw(game.spriteBatch, layout, (1280f - layout.width) / 2f, 70f)
         game.spriteBatch.end()
 
-        if (Gdx.input.justTouched()) {
-            game.startGame()
-        }
+        if (Gdx.input.justTouched()) game.startGame()
     }
 
     override fun resize(width: Int, height: Int) {
