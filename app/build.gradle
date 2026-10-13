@@ -1,0 +1,84 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace 'legame.actiongame3d'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "legame.actiongame3d"
+        minSdk 24
+        targetSdk 33
+        versionCode 1
+        versionName "0.1.0"
+    }
+
+    sourceSets {
+        main {
+            java.srcDirs = ['src/main/java']
+            res.srcDirs = ['src/main/res']
+            assets.srcDirs = ['src/main/assets']
+            jniLibs.srcDirs = ['libs']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = '11'
+    }
+
+    packaging {
+        resources {
+            excludes += ['META-INF/robovm/ios/robovm.xml']
+        }
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+
+    buildTypes {
+        debug { minifyEnabled false }
+        release { minifyEnabled false }
+    }
+}
+
+dependencies {
+    implementation "com.badlogicgames.gdx:gdx:1.12.1"
+    implementation "com.badlogicgames.gdx:gdx-backend-android:1.12.1"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.24"
+}
+
+// Extract natives without mutating project configurations
+task copyAndroidNatives {
+    doLast {
+        def abis = ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64']
+        abis.each { file("libs/$it").mkdirs() }
+        def det = configurations.detachedConfiguration(
+            dependencies.create("com.badlogicgames.gdx:gdx-platform:1.12.1:natives-armeabi-v7a"),
+            dependencies.create("com.badlogicgames.gdx:gdx-platform:1.12.1:natives-arm64-v8a"),
+            dependencies.create("com.badlogicgames.gdx:gdx-platform:1.12.1:natives-x86"),
+            dependencies.create("com.badlogicgames.gdx:gdx-platform:1.12.1:natives-x86_64")
+        )
+        det.transitive = false
+        det.resolve().each { jar ->
+            def abi = null
+            if (jar.name.contains('arm64-v8a')) abi = 'arm64-v8a'
+            else if (jar.name.contains('armeabi-v7a')) abi = 'armeabi-v7a'
+            else if (jar.name.contains('x86_64')) abi = 'x86_64'
+            else if (jar.name.contains('x86')) abi = 'x86'
+            if (abi != null) {
+                copy {
+                    from zipTree(jar)
+                    into "libs/$abi"
+                    include '*.so'
+                }
+            }
+        }
+    }
+}
+
+tasks.named('preBuild').configure { dependsOn copyAndroidNatives }
