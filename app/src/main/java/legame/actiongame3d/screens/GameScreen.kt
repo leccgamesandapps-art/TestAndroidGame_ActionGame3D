@@ -13,6 +13,7 @@ import com.badlogic.gdx.math.Vector3
 import com.badlogic.gdx.math.collision.Ray
 import com.badlogic.gdx.utils.Array
 import legame.actiongame3d.ActionGame3D
+import legame.actiongame3d.MobileControls
 import legame.actiongame3d.entities.Bot
 import legame.actiongame3d.entities.Player
 import legame.actiongame3d.weapons.WeaponType
@@ -22,6 +23,7 @@ class GameScreen(private val game: ActionGame3D) : ScreenAdapter() {
     private lateinit var camera: PerspectiveCamera
     private lateinit var player: Player
     private lateinit var world: GameWorld
+    private lateinit var controls: MobileControls
     private val bots = Array<Bot>()
     private val modelBatch = ModelBatch()
     private val layout = GlyphLayout()
@@ -36,19 +38,22 @@ class GameScreen(private val game: ActionGame3D) : ScreenAdapter() {
 
     override fun show() {
         camera = PerspectiveCamera(75f, Gdx.graphics.width.toFloat(), Gdx.graphics.height.toFloat())
-        camera.near = 0.1f; camera.far = 200f
+        camera.near = 0.1f
+        camera.far = 200f
         camera.position.set(0f, 1.7f, 0f)
         camera.lookAt(0f, 1.7f, -1f)
         camera.update()
         player = Player(camera)
         world = GameWorld()
+        controls = MobileControls()
         spawnBots(8)
-        Gdx.input.isCursorCatched = true
+        Gdx.input.isCursorCatched = false
         matchTime = 0f; score = 0; gameOver = false; victory = false
     }
 
     private fun spawnBots(count: Int) {
-        bots.forEach { it.dispose() }; bots.clear()
+        bots.forEach { it.dispose() }
+        bots.clear()
         val mb = world.getModelBuilder()
         for (i in 0 until count) {
             val angle = i * (360f / count)
@@ -73,26 +78,30 @@ class GameScreen(private val game: ActionGame3D) : ScreenAdapter() {
         }
         modelBatch.end()
         renderHUD()
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            Gdx.input.isCursorCatched = false
+        if (!gameOver) controls.render()
+        if (Gdx.input.isKeyJustPressed(Input.Keys.BACK) || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             game.goToMenu()
         }
-        if (gameOver && (Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.justTouched())) {
+        if (gameOver && Gdx.input.justTouched()) {
             player.reset(); spawnBots(8)
             matchTime = 0f; score = 0; gameOver = false; victory = false
-            Gdx.input.isCursorCatched = true
         }
     }
 
     private fun update(delta: Float) {
-        player.update(delta, world.worldSize - 2f)
+        controls.update()
+        player.updateMobile(
+            delta, world.worldSize - 2f,
+            controls.moveX, controls.moveY,
+            controls.lookDeltaX, controls.lookDeltaY,
+            controls.sprintPressed, controls.jumpJustPressed, controls.reloadJustPressed
+        )
         if (muzzleFlashTimer > 0) muzzleFlashTimer -= delta
         if (hitMarkerTimer > 0) hitMarkerTimer -= delta
         if (damageFlashTimer > 0) damageFlashTimer -= delta
         if (player.isAlive) {
             val wep = player.currentWeapon
-            val shoot = if (wep.type.isAutomatic) Gdx.input.isButtonPressed(Input.Buttons.LEFT)
-            else Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)
+            val shoot = if (wep.type.isAutomatic) controls.shootPressed else controls.shootJustPressed
             if (shoot && wep.shoot()) { muzzleFlashTimer = 0.08f; performShot() }
         }
         var alive = 0
@@ -110,11 +119,11 @@ class GameScreen(private val game: ActionGame3D) : ScreenAdapter() {
             }
         }
         if (!player.isAlive) {
-            gameOver = true; victory = false; Gdx.input.isCursorCatched = false
+            gameOver = true; victory = false
             game.totalKills += player.kills
             if (score > game.highScore) game.highScore = score
         } else if (alive == 0) {
-            gameOver = true; victory = true; Gdx.input.isCursorCatched = false
+            gameOver = true; victory = true
             score += 500; game.totalKills += player.kills
             if (score > game.highScore) game.highScore = score
         }
@@ -163,48 +172,37 @@ class GameScreen(private val game: ActionGame3D) : ScreenAdapter() {
         val w = Gdx.graphics.width.toFloat()
         val h = Gdx.graphics.height.toFloat()
         game.spriteBatch.begin()
-        game.font.data.setScale(1.4f)
+        game.font.data.setScale(1.2f)
         game.font.color = if (hitMarkerTimer > 0) Color.RED else Color.WHITE
         layout.setText(game.font, if (hitMarkerTimer > 0) "X" else "+")
         game.font.draw(game.spriteBatch, layout, (w - layout.width) / 2f, (h + layout.height) / 2f)
-        game.font.data.setScale(1.1f)
+        game.font.data.setScale(1.0f)
         game.font.color = Color.WHITE
-        game.font.draw(game.spriteBatch, "HP", 30f, 70f)
-        game.font.color = when { player.health > 60 -> Color.GREEN; player.health > 30 -> Color.YELLOW; else -> Color.RED }
-        game.font.draw(game.spriteBatch, "${player.health.toInt()} / ${player.maxHealth.toInt()}", 70f, 70f)
+        game.font.draw(game.spriteBatch, "HP", 20f, h - 20f)
+        game.font.color = when {
+            player.health > 60 -> Color.GREEN
+            player.health > 30 -> Color.YELLOW
+            else -> Color.RED
+        }
+        game.font.draw(game.spriteBatch, "${player.health.toInt()}", 55f, h - 20f)
         val wep = player.currentWeapon
         game.font.color = Color.WHITE
-        game.font.draw(game.spriteBatch, wep.type.displayName, w - 280f, 90f)
+        game.font.draw(game.spriteBatch, wep.type.displayName, w - 200f, h - 20f)
         game.font.color = if (wep.isReloading) Color.ORANGE else Color.CYAN
-        game.font.draw(game.spriteBatch, if (wep.isReloading) "RELOADING..." else "${wep.ammoInMag} / ${wep.reserveAmmo}", w - 280f, 60f)
+        game.font.draw(game.spriteBatch, if (wep.isReloading) "RELOAD..." else "${wep.ammoInMag}/${wep.reserveAmmo}", w - 200f, h - 45f)
         game.font.color = Color.GOLD
-        game.font.draw(game.spriteBatch, "Score: $score", 30f, h - 30f)
-        game.font.draw(game.spriteBatch, "Kills: ${player.kills}", 30f, h - 60f)
-        game.font.draw(game.spriteBatch, "Time: %d:%02d".format((matchTime / 60).toInt(), (matchTime % 60).toInt()), 30f, h - 90f)
+        game.font.draw(game.spriteBatch, "Score $score  Kills ${player.kills}", 20f, h - 50f)
         game.font.color = Color.LIGHT_GRAY
-        game.font.draw(game.spriteBatch, "Enemies: ${bots.count { it.isAlive }}", w - 200f, h - 30f)
-        if (damageFlashTimer > 0) {
-            game.font.data.setScale(2f)
-            game.font.color = Color(1f, 0.2f, 0.2f, damageFlashTimer * 2)
-            layout.setText(game.font, "HIT")
-            game.font.draw(game.spriteBatch, layout, (w - layout.width) / 2f, h * 0.3f)
-        }
+        game.font.draw(game.spriteBatch, "Enemy ${bots.count { it.isAlive }}", 20f, h - 75f)
         if (gameOver) {
-            game.font.data.setScale(2.8f)
+            game.font.data.setScale(2.5f)
             game.font.color = if (victory) Color.GREEN else Color.RED
             layout.setText(game.font, if (victory) "VICTORY" else "YOU DIED")
             game.font.draw(game.spriteBatch, layout, (w - layout.width) / 2f, h * 0.6f)
-            game.font.data.setScale(1.3f)
+            game.font.data.setScale(1.2f)
             game.font.color = Color.WHITE
-            layout.setText(game.font, "Score: $score   Kills: ${player.kills}")
-            game.font.draw(game.spriteBatch, layout, (w - layout.width) / 2f, h * 0.5f)
-            layout.setText(game.font, "TAP / ENTER - Restart")
-            game.font.draw(game.spriteBatch, layout, (w - layout.width) / 2f, h * 0.4f)
-        }
-        if (muzzleFlashTimer > 0) {
-            game.font.data.setScale(1.5f)
-            game.font.color = Color.YELLOW
-            game.font.draw(game.spriteBatch, "*", w / 2f + 20f, h / 2f - 10f)
+            layout.setText(game.font, "TAP TO RESTART")
+            game.font.draw(game.spriteBatch, layout, (w - layout.width) / 2f, h * 0.45f)
         }
         game.spriteBatch.end()
     }
@@ -213,13 +211,13 @@ class GameScreen(private val game: ActionGame3D) : ScreenAdapter() {
         camera.viewportWidth = width.toFloat()
         camera.viewportHeight = height.toFloat()
         camera.update()
+        if (::controls.isInitialized) controls.resize(width, height)
     }
-
-    override fun hide() { Gdx.input.isCursorCatched = false }
 
     override fun dispose() {
         modelBatch.dispose()
         world.dispose()
         bots.forEach { it.dispose() }
+        if (::controls.isInitialized) controls.dispose()
     }
 }
